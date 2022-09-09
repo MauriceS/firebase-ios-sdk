@@ -664,6 +664,7 @@ extern NSString *const FIRPhoneMultiFactorID;
                          };
                      [self->_auth.authURLPresenter
                               presentURL:reCAPTCHAURL
+                          callbackScheme:self->_callbackScheme
                               UIDelegate:UIDelegate
                          callbackMatcher:callbackMatcher
                               completion:^(NSURL *_Nullable callbackURL, NSError *_Nullable error) {

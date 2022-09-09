@@ -18,6 +18,7 @@
 #if TARGET_OS_IOS
 
 #import <SafariServices/SafariServices.h>
+#import <AuthenticationServices/AuthenticationServices.h>
 #import "FirebaseAuth/Sources/Public/FirebaseAuth/FIRAuthUIDelegate.h"
 
 #import "FirebaseAuth/Sources/Auth/FIRAuthGlobalWorkQueue.h"
@@ -28,8 +29,13 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 130000
+@interface FIRAuthURLPresenter () <SFSafariViewControllerDelegate, FIRAuthWebViewControllerDelegate, ASWebAuthenticationPresentationContextProviding>
+@end
+#else
 @interface FIRAuthURLPresenter () <SFSafariViewControllerDelegate, FIRAuthWebViewControllerDelegate>
 @end
+#endif
 
 // Disable unguarded availability warnings because SFSafariViewController is been used throughout
 // the code, including as an iVar, which cannot be simply excluded by @available check.
@@ -58,6 +64,11 @@ NS_ASSUME_NONNULL_BEGIN
       @brief The FIRAuthWebViewController used for the current presentation, if any.
    */
   FIRAuthWebViewController *_Nullable _webViewController;
+  
+  /** @var _authenticationSession
+      @brief The ASWebAuthenticationSession used for the current presentation, if any.
+   */
+  ASWebAuthenticationSession *_Nullable _authenticationSession;
 
   /** @var _UIDelegate
       @brief The UIDelegate used to present the SFSafariViewController.
@@ -74,6 +85,7 @@ NS_ASSUME_NONNULL_BEGIN
 }
 
 - (void)presentURL:(NSURL *)URL
+     callbackScheme:(NSString *)callbackScheme
          UIDelegate:(nullable id<FIRAuthUIDelegate>)UIDelegate
     callbackMatcher:(FIRAuthURLCallbackMatcher)callbackMatcher
          completion:(FIRAuthURLPresentationCompletion)completion {
@@ -97,7 +109,31 @@ NS_ASSUME_NONNULL_BEGIN
         [[UINavigationController alloc] initWithRootViewController:self->_webViewController];
     [self->_UIDelegate presentViewController:navController animated:YES completion:nil];
 #else
-    if ([SFSafariViewController class]) {
+      if (@available(iOS 12.0, *)) {
+          if (!UIAccessibilityIsGuidedAccessEnabled()) {
+              // ASWebAuthenticationSession doesn't work with guided access (rdar://40809553)
+              self->_authenticationSession =
+              [[ASWebAuthenticationSession alloc] initWithURL:URL
+                                            callbackURLScheme:callbackScheme
+                                            completionHandler:^(NSURL * _Nullable callbackURL, NSError * _Nullable error) {
+                  dispatch_async(FIRAuthGlobalWorkQueue(), ^() {
+                      if (callbackURL == nil) {
+                          [self finishPresentationWithURL:nil
+                                                    error:[FIRAuthErrorUtils webContextCancelledErrorWithMessage:nil]];
+                      } else {
+                          [self finishPresentationWithURL:callbackURL
+                                                    error:nil];
+                      }
+                  });
+              }];
+#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 130000
+              if (@available(iOS 13.0, *)) {
+                  self->_authenticationSession.presentationContextProvider = self;
+              }
+              [self->_authenticationSession start];
+          }
+#endif
+    } else if ([SFSafariViewController class]) {
       self->_safariViewController = [[SFSafariViewController alloc] initWithURL:URL];
       self->_safariViewController.delegate = self;
       [self->_UIDelegate presentViewController:self->_safariViewController
@@ -200,6 +236,16 @@ NS_ASSUME_NONNULL_BEGIN
 }
 
 #pragma clang diagnostic pop  // ignored "-Wunguarded-availability"
+
+#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 130000
+#pragma mark - ASWebAuthenticationPresentationContextProviding
+
+- (ASPresentationAnchor)presentationAnchorForWebAuthenticationSession:(ASWebAuthenticationSession *)session API_AVAILABLE(ios(13.0)){
+    return [[UIApplication sharedApplication] keyWindow];
+
+}
+#endif // __IPHONE_OS_VERSION_MAX_ALLOWED >= 130000
+
 
 @end
 

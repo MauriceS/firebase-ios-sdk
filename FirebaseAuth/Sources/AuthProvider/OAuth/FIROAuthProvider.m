@@ -174,6 +174,7 @@ static NSString *const kCustomUrlSchemePrefix = @"app-";
                             __strong FIRAuth *strongAuth = weakAuth;
                             [strongAuth.authURLPresenter
                                      presentURL:headfulLiteURL
+                             callbackScheme:self->_callbackScheme
                                      UIDelegate:UIDelegate
                                 callbackMatcher:callbackMatcher
                                      completion:^(NSURL *_Nullable callbackURL,

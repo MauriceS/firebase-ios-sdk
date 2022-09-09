@@ -46,11 +46,13 @@ typedef BOOL (^FIRAuthURLCallbackMatcher)(NSURL *_Nullable callbackURL);
 /** @fn presentURL:UIDelegate:callbackMatcher:completion:
     @brief Presents an URL to interact with user.
     @param URL The URL to present.
+    @param callbackScheme The callback URL scheme to use when using ASWebAuthenticationSession
     @param UIDelegate The UI delegate to present view controller.
     @param completion A block to be called either synchronously if the presentation fails to start,
         or asynchronously in future on an unspecified thread once the presentation finishes.
  */
 - (void)presentURL:(NSURL *)URL
+     callbackScheme:(NSString *)callbackScheme
          UIDelegate:(nullable id<FIRAuthUIDelegate>)UIDelegate
     callbackMatcher:(FIRAuthURLCallbackMatcher)callbackMatcher
          completion:(FIRAuthURLPresentationCompletion)completion;
